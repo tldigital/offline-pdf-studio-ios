@@ -1,0 +1,22 @@
+{
+  "name": "offline-pdf-studio-ios-pro",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Privacy-first installable PDF tools for iPhone (no App Store)",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && node scripts/postbuild.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/main.js && node --check src/pdf-core.js && node --check src/pdf-preview.js"
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.4.299",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.4"
+  }
+}

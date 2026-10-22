@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0c242c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PDF Studio Pro">
+  <meta name="description" content="Professional privacy-first PDF tools. Edit, sign, merge and convert documents directly on your iPhone.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-180.png">
+  <link rel="icon" href="./icons/icon-192.png">
+  <title>Offline PDF Studio — iPhone Pro</title>
+  <link rel="stylesheet" href="./src/style.css">
+  <script type="module" src="./src/main.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="desktop-rail">
+      <div class="logo-mark">▤</div>
+      <span class="rail-wordmark">STUDIO</span>
+      <div class="rail-dots"><span class="active"></span><span></span><span></span></div>
+      <div class="rail-bottom">PRIVATE<br>BY DESIGN</div>
+    </aside>
+    <div class="app-content">
+      <header class="topbar">
+        <div class="identity"><div class="logo-mark mobile-logo">▤</div><div><strong>Offline PDF Studio</strong><small>PRO EDITION · iPHONE</small></div></div>
+        <div class="header-actions"><span id="onlinePill" class="security-pill"><span class="pulse"></span> ON-DEVICE</span><button id="helpBtn" class="icon-button" title="Security and help" aria-label="Help and security">?</button></div>
+      </header>
+      <main>
+        <section class="welcome" id="homeView">
+          <div class="welcome-text"><div class="eyebrow"><span class="tiny-line"></span> YOUR PRIVATE WORKSPACE</div><h1>Every PDF tool.<br><em>One beautifully simple app.</em></h1><p>Work with documents directly on your iPhone. Your PDFs are processed locally, not uploaded to an editor's servers.</p><div class="hero-tags"><span>✦ Secure by design</span><span>↯ Works offline</span><span>⌁ No sign-in</span></div></div>
+          <div class="hero-visual" aria-hidden="true"><div class="pdf-sheet sheet-back"></div><div class="pdf-sheet sheet-front"><div class="sheet-top"><span>PDF</span><span>•••</span></div><div class="sheet-line wide"></div><div class="sheet-line med"></div><div class="sheet-line long"></div><div class="sheet-hl"></div><div class="sheet-line med"></div><div class="signature-squiggle">T. Studio</div></div><div class="hero-check">✓</div></div>
+        </section>
+        <section class="quickbar" aria-label="Quick actions"><div><span class="quick-label">WORKSPACE</span><strong>Ready when you are</strong><small id="offlineText">No files leave your device</small></div><button id="quickOpen" class="button-primary">＋ Open PDF <span>↗</span></button></section>
+        <section class="section-heading"><div><span class="eyebrow small">ALL THE ESSENTIALS</span><h2>PDF tools</h2></div><span id="toolCount" class="tool-counter">14 ACTIONS</span></section>
+        <div class="tool-grid" id="toolGrid">
+          <button class="tool-card" data-mode="organise"><span class="tool-icon indigo">▦</span><b>Organise pages</b><small>Reorder, rotate, delete and insert.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="merge"><span class="tool-icon mint">▣</span><b>Merge PDFs</b><small>Combine documents in any order.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="split"><span class="tool-icon peach">✂</span><b>Split PDF</b><small>Extract pages or download a ZIP.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="sign"><span class="tool-icon lavender">✍</span><b>Sign document</b><small>Draw your signature onto any page.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="photos"><span class="tool-icon yellow">▧</span><b>Photos to PDF</b><small>Convert phone pictures to pages.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="text"><span class="tool-icon cyan">≡</span><b>Text to PDF</b><small>Make searchable documents from notes.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="blank"><span class="tool-icon lavender">▤</span><b>Create blank PDF</b><small>Custom paper sizes and page count.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="watermark"><span class="tool-icon mint">◇</span><b>Watermark</b><small>Add a subtle stamp across pages.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="number"><span class="tool-icon peach">№</span><b>Page numbers</b><small>Number documents automatically.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="annotate"><span class="tool-icon yellow">✎</span><b>Add text</b><small>Stamp notes onto a chosen page.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="stamp"><span class="tool-icon cyan">▨</span><b>Add image</b><small>Insert logos, photos or signatures.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="forms"><span class="tool-icon lavender">☑</span><b>Fill PDF forms</b><small>Complete text and checkbox fields.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="export"><span class="tool-icon indigo">⇩</span><b>PDF to images</b><small>Export pages as PNGs in a ZIP.</small><span class="tool-chev">↗</span></button>
+          <button class="tool-card" data-mode="view"><span class="tool-icon mint">◉</span><b>View PDF</b><small>Private page previews on your phone.</small><span class="tool-chev">↗</span></button>
+        </div>
+        <div class="privacy-footer"><span class="lock-icon">♢</span><div><strong>Made to keep your documents yours</strong><p>No accounts, tracking, analytics, document uploads or server-side PDF processing. Saved files go to your chosen location.</p></div></div>
+      </main>
+      <footer class="site-footer"><span>OFFLINE PDF STUDIO · PRO</span><span>DOCUMENTS BELONG TO YOU</span></footer>
+    </div>
+  </div>
+  <div class="workspace-scrim" id="workspaceScrim" hidden></div>
+  <section class="workspace" id="workspace" hidden aria-modal="true" role="dialog" aria-labelledby="workspaceTitle">
+    <header class="workspace-header"><button id="closeWorkspace" class="back-button" aria-label="Close workspace">←</button><div><small>PDF STUDIO / TOOL</small><h2 id="workspaceTitle">Edit PDF</h2></div><button id="workspaceHelp" class="icon-button" aria-label="Help">?</button></header>
+    <div class="workspace-scroll">
+      <div class="workspace-subtitle" id="workspaceSubtitle"></div>
+      <div class="upload-area" id="fileInputArea"><span class="upload-symbol">↑</span><b id="uploadTitle">Select PDF documents</b><small id="uploadDetails">Files stay on your iPhone</small><button id="chooseFiles" class="button-outline">Choose files</button><input type="file" id="filePicker" accept=".pdf,application/pdf" hidden></div>
+      <div id="selectedInfo" class="selected-info" hidden></div>
+      <div id="fileStack" class="file-stack"></div>
+      <div id="editorView" hidden>
+        <div class="preview-toolbar"><div><span class="preview-title">PAGE PREVIEW</span><span id="pagePosition">1 / 1</span></div><div class="preview-actions"><button id="prevPage" aria-label="Previous page">‹</button><button id="nextPage" aria-label="Next page">›</button></div></div>
+        <div class="pdf-preview" id="previewBox"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="previewPlaceholder" class="preview-placeholder">Preparing preview…</div></div>
+      </div>
+      <div class="form-area" id="formArea"></div>
+      <div class="field-grid" id="utilityButtons" hidden>
+        <button id="undoButton" class="mini-btn">↶ Undo</button><button id="redoButton" class="mini-btn">↷ Redo</button>
+      </div>
+      <div class="tool-instructions" id="toolCaution" hidden></div>
+      <div class="status" id="status" role="status" aria-live="polite" hidden></div>
+      <div class="result-panel" id="resultPanel" hidden><span>✓</span><div><b id="resultTitle">File ready</b><small id="resultMeta">Created locally</small></div><button id="shareButton" class="button-outline">Share</button></div>
+    </div>
+    <footer class="workspace-actions"><button id="resetTool" class="button-tertiary">Reset</button><button id="runAction" class="button-primary">Continue <span>→</span></button></footer>
+  </section>
+  <section class="help-sheet" id="helpSheet" hidden role="dialog" aria-modal="true" aria-labelledby="helpHeading"><div class="help-head"><h2 id="helpHeading">Your documents stay yours</h2><button id="closeHelp" class="icon-button" aria-label="Close help">×</button></div><p>Offline PDF Studio runs the PDF engine entirely inside your browser. It does not upload PDF contents, log document names, or save documents to a cloud account.</p><h3>Know the limitations</h3><p>This app does not offer cryptographically certified signatures, secure redaction, PDF password encryption, OCR or high-fidelity Word conversion. Signatures here are visual marks. Password-protected PDFs may not open.</p><h3>Use on your iPhone</h3><p>Publish the built app to an HTTPS website. In Safari, choose Share → Add to Home Screen → Open as Web App. After installation, the app can operate offline once its files have cached successfully.</p><button id="helpDone" class="button-primary">Understood</button></section>
+</body>
+</html>
