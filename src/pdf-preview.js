@@ -1,6 +1,9 @@
 // The PDF.js legacy build is required for reliable rendering in Safari on iOS 18.
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+// GitHub Pages serves .js with the correct JavaScript MIME type. A stable URL
+// avoids stale, hashed .mjs URLs in older iPhone/PWA caches.
+// The matching worker is copied from this installed pdfjs-dist version at build time.
+const workerUrl = new URL('pdf.worker.js', document.baseURI).href;
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 const MAX_PREVIEW_PIXELS = 6_000_000;
 export async function openPreview(bytes) {

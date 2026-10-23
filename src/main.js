@@ -81,10 +81,24 @@ async function refreshPreview(){
     if(state.mode==='view') $('workspace').classList.add('viewer-active');
     await drawPreview();
   } catch(e) {
-    $('editorView').hidden=true;
-    $('workspace').classList.remove('viewer-active');
-    if(state.mode==='view') $('fileInputArea').hidden=false;
-    status('Cannot open preview: '+errorMessage(e)+' Try another PDF, or open the original in the Files app.');
+    const detail=errorMessage(e);
+    if(state.mode==='view' && state.bytes) {
+      // Keep the native viewer button accessible even when PDF.js fails to start.
+      $('editorView').hidden=false;
+      $('workspace').classList.add('viewer-active');
+      $('fileInputArea').hidden=true;
+      $('pdfCanvas').hidden=true;
+      $('previewPlaceholder').hidden=false;
+      $('previewPlaceholder').textContent='This preview could not be loaded. Tap “Open in iPhone PDF viewer” below to read your document.';
+      $('pagePosition').textContent='– / –';
+      $('prevPage').disabled=true;
+      $('nextPage').disabled=true;
+      status('Preview engine failed: '+detail);
+    } else {
+      $('editorView').hidden=true;
+      $('workspace').classList.remove('viewer-active');
+      status('Cannot open preview: '+detail+' Try another PDF.');
+    }
   }
 }
 function showPreviewError(message){
