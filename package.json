@@ -1,7 +1,7 @@
 {
   "name": "offline-pdf-studio-ios-pro",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.3.0",
   "type": "module",
   "description": "Privacy-first installable PDF tools for iPhone (no App Store)",
   "scripts": {

@@ -36,3 +36,39 @@
   .viewer-workspace.viewer-active .preview-toolbar{padding:7px 10px;justify-content:space-between}
   .viewer-workspace.viewer-active .pdf-preview{padding:8px}
 }
+
+/* v1.3 · Advanced reader and on-page visual stamping */
+.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important}
+.viewer-pro-tools{display:none;background:#fff;border-bottom:1px solid #dde7e1;padding:9px 12px;gap:8px;flex-direction:column;flex-shrink:0}
+.viewer-workspace.viewer-active .viewer-pro-tools{display:flex}
+.viewer-search-form,.viewer-page-shortcuts{display:flex;align-items:center;gap:7px;min-width:0}
+.viewer-search-form input{background:#f7faf8;border:1px solid #cbdcd3;border-radius:9px;min-width:0;flex:1;padding:10px 11px;font-size:14px;min-height:42px}
+.viewer-page-shortcuts label{font-size:12px;font-weight:800;color:#4c776c}
+.viewer-page-shortcuts input{background:#f7faf8;border:1px solid #cbdcd3;border-radius:8px;width:66px;font-size:14px;text-align:center;min-height:40px;padding:6px}
+.viewer-page-shortcuts #viewerCopyText{margin-left:auto}
+.viewer-search-results{display:flex;flex-direction:column;max-height:26svh;overflow:auto;gap:5px;border-radius:9px;background:#f0f5f2;border:1px solid #e0ece6;padding:8px;font-size:12px;line-height:1.5;color:#3b6a5c}
+.search-count{font-weight:800;padding:3px 4px;color:#26674f}
+.search-result{background:white;border:1px solid #d9e7df;border-radius:8px;display:flex;gap:9px;align-items:start;padding:9px;text-align:left;color:#234342;width:100%}
+.search-result b{white-space:nowrap;font-size:12px}
+.search-result span{font-size:11px;overflow-wrap:anywhere}
+.viewer-text-panel{background:#fff;padding:10px 13px;border-top:1px solid #dce9e3;max-height:30svh;overflow-y:auto}
+.viewer-text-heading{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.viewer-text-panel p{font-size:11px;color:#68837c;margin:5px 0}
+.viewer-text-panel textarea{width:100%;height:105px;resize:vertical;border:1px solid #d1e3da;border-radius:8px;background:#fcfdfc;color:#183941;padding:9px;font:13px/1.45 -apple-system,BlinkMacSystemFont,Arial,sans-serif;user-select:text;-webkit-user-select:text}
+.pdf-preview{position:relative}
+.placement-pin{position:absolute;z-index:3;pointer-events:none;transform:translate(-50%,-50%);width:32px;height:32px;display:grid;place-items:center;border:2px solid #fff;outline:2px solid #1a8769;border-radius:50%;background:#1a8769e8;color:#fff;font-size:20px;box-shadow:0 2px 12px #0004}
+.tap-placement-help{background:#eaf5ef;border:1px solid #c4e0d1;border-radius:10px;color:#23684f;font-weight:650;padding:11px;margin:8px 0;font-size:12px;line-height:1.5}
+.placement-workspace{width:min(850px,100vw)}
+.placement-workspace .pdf-preview{max-height:52svh;min-height:260px;overflow:auto;display:block;text-align:center}
+.placement-workspace .pdf-preview canvas{max-height:none;max-width:100%;height:auto;margin-inline:auto;box-shadow:0 8px 18px #0002;touch-action:manipulation;cursor:crosshair}
+.placement-workspace .preview-toolbar{margin:13px 0 8px}
+.placement-workspace .viewer-pro-tools{display:none}
+.viewer-workspace.viewer-active .workspace-scroll{min-height:0}
+@media(max-width:710px){
+ .viewer-search-form input{font-size:16px}
+ .viewer-pro-tools{padding:7px 9px}
+ .viewer-page-shortcuts input{width:53px}
+ .viewer-page-shortcuts .mini-btn{padding:9px 10px}
+ .viewer-search-results{max-height:20svh}
+ .placement-workspace .pdf-preview{max-height:55svh;min-height:235px;padding:6px}
+}

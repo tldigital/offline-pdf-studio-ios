@@ -1,5 +1,6 @@
 import * as core from './pdf-core.js';
 import {openPreview,renderPage,exportPngsAsZip} from './pdf-preview.js';
+import {normaliseText,searchDocument,tapToPdfPoint} from './viewer-utils.js';
 
 const $=id=>document.getElementById(id);
 const TOOL={
@@ -18,7 +19,7 @@ const TOOL={
   export:['PDF to PNG','Export document pages as PNG images in a ZIP file.'],
   view:['View PDF','Preview pages directly on this device.']
 };
-const state={mode:'view',files:[],image:null,bytes:null,history:[],redo:[],page:0,preview:null,result:null,busy:false,signature:false,signatureCtx:null,signatureDrawing:false,zoom:1,renderRequest:0,renderQueue:Promise.resolve()};
+const state={mode:'view',files:[],image:null,bytes:null,history:[],redo:[],page:0,preview:null,result:null,busy:false,signature:false,signatureCtx:null,signatureDrawing:false,zoom:1,renderRequest:0,renderQueue:Promise.resolve(),searchToken:0,placement:null,pendingPinchZoom:null};
 const input=(id,label,{type='text',value='',min,max,step,placeholder,accept}={})=>`<label class="field"><span>${label}</span><input id="${id}" type="${type}" value="${value}" ${min!==undefined?`min="${min}"`:''} ${max!==undefined?`max="${max}"`:''} ${step!==undefined?`step="${step}"`:''} ${placeholder?`placeholder="${placeholder}"`:''} ${accept?`accept="${accept}"`:''}></label>`;
 const select=(id,label,entries)=>`<label class="field"><span>${label}</span><select id="${id}">${entries.map(([val,title])=>`<option value="${val}">${title}</option>`).join('')}</select></label>`;
 const pagesSelect=()=>input('pageNo','Page number',{type:'number',value:'1',min:1});
@@ -31,8 +32,8 @@ function fileResult(blob,name){state.result={blob,name};$('resultPanel').hidden=
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function share(){if(!state.result)return;const {blob,name}=state.result;try{const file=new File([blob],name,{type:blob.type});if(navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],title:name});return;}}catch(err){if(err.name==='AbortError')return;}download(blob,name);status('File saved or sent to Safari Downloads. Check Files → Downloads.',true);}
 function resetResults(){state.result=null;$('resultPanel').hidden=true;status('');}
-function closePreview(){state.renderRequest++;if(state.preview){state.preview.close();state.preview=null;}}
-function clearEditor(){$('workspace').classList.remove('viewer-active');closePreview();state.files=[];state.image=null;state.bytes=null;state.history=[];state.redo=[];state.page=0;state.zoom=1;state.signature=false;resetResults();$('filePicker').value='';$('fileStack').replaceChildren();$('selectedInfo').hidden=true;$('editorView').hidden=true;$('utilityButtons').hidden=true;}
+function closePreview(){state.renderRequest++;state.searchToken++;if(state.preview){state.preview.close();state.preview=null;}}
+function clearEditor(){$('workspace').classList.remove('viewer-active');closePreview();state.files=[];state.image=null;state.bytes=null;state.history=[];state.redo=[];state.page=0;state.zoom=1;state.signature=false;state.placement=null;$('placementPin').hidden=true;$('viewerTextPanel').hidden=true;$('viewerSearchResults').hidden=true;$('viewerSearchResults').replaceChildren();$('viewerSearch').value='';resetResults();$('filePicker').value='';$('fileStack').replaceChildren();$('selectedInfo').hidden=true;$('editorView').hidden=true;$('utilityButtons').hidden=true;}
 function getForms(mode){switch(mode){
 case 'organise':return `<p class="note">Use the controls below to modify your document. Each operation can be undone before saving.</p><div class="control-row"><button id="moveUp" class="mini-btn">↑ Move up</button><button id="moveDown" class="mini-btn">↓ Move down</button><button id="rotateLeft" class="mini-btn">↺ Rotate</button><button id="rotateRight" class="mini-btn">↻ Rotate</button></div><div class="control-row"><button id="deletePage" class="mini-btn warning">Remove page</button><button id="insertPage" class="mini-btn">＋ Blank page</button></div>`;
 case 'merge':return `<p class="note">Select 2–20 PDFs. Use the arrows in the file list to arrange their merge order.</p>`;
@@ -49,7 +50,7 @@ case 'forms':return `<div id="formFields"><p class="note">Open a fillable PDF an
 case 'export':return `<p class="note">Exports up to 30 pages at high resolution. The PNG images are placed into a ZIP archive.</p>`;
 case 'view':return `<p class="note">Use the page navigation above to browse your PDF. Original file stays unchanged.</p>`;
 }}
-function show(mode){if(!TOOL[mode])return;state.mode=mode;clearEditor();$('workspaceTitle').textContent=TOOL[mode][0];$('workspaceSubtitle').textContent=TOOL[mode][1];$('formArea').innerHTML=getForms(mode);$('workspace').hidden=false;$('workspaceScrim').hidden=false;document.body.classList.add('panel-open');$('workspace').classList.toggle('viewer-workspace',mode==='view');
+function show(mode){if(!TOOL[mode])return;state.mode=mode;clearEditor();$('workspaceTitle').textContent=TOOL[mode][0];$('workspaceSubtitle').textContent=TOOL[mode][1];$('formArea').innerHTML=getForms(mode);$('workspace').hidden=false;$('workspaceScrim').hidden=false;document.body.classList.add('panel-open');$('workspace').classList.toggle('viewer-workspace',mode==='view');$('workspace').classList.toggle('placement-workspace',['sign','annotate'].includes(mode));$('tapPlacementHelp').hidden=!['sign','annotate'].includes(mode);
  const noPdf=['blank','text','photos'].includes(mode);$('fileInputArea').hidden=noPdf;$('editorView').hidden=true;
  $('filePicker').accept=mode==='photos'?'image/*':'.pdf,application/pdf';$('filePicker').multiple=['photos','merge'].includes(mode);
  $('uploadTitle').textContent=mode==='photos'?'Select photos':mode==='merge'?'Select multiple PDFs':'Select a PDF';$('uploadDetails').textContent='Files are processed locally in your browser';
@@ -63,7 +64,7 @@ function show(mode){if(!TOOL[mode])return;state.mode=mode;clearEditor();$('works
 function hide(){clearEditor();$('workspace').hidden=true;$('workspaceScrim').hidden=true;$('helpSheet').hidden=true;document.body.classList.remove('panel-open');}
 function setupSignature(){const canvas=$('signCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');state.signatureCtx=ctx;ctx.strokeStyle='#162f3a';ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';canvas.style.touchAction='none';const pos=(e)=>{const r=canvas.getBoundingClientRect();return [(e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height]};canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);state.signatureDrawing=true;const [x,y]=pos(e);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+0.1,y+0.1);ctx.stroke();state.signature=true;};canvas.onpointermove=e=>{if(!state.signatureDrawing)return;const [x,y]=pos(e);ctx.lineTo(x,y);ctx.stroke();};canvas.onpointerup=canvas.onpointercancel=()=>{state.signatureDrawing=false};$('clearSign').onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);state.signature=false;};}
 function parseRange(input,max){const selected=[];for(const part of input.replace(/\s/g,'').split(',')){if(!part)continue;const m=part.match(/^(\d+)(?:-(\d+))?$/);if(!m)throw Error('Use page numbers separated by commas, for example 1,3-5.');const a=Number(m[1]),b=Number(m[2]||m[1]);if(a<1||b<a||b>max)throw Error('Page range is outside this PDF.');for(let i=a;i<=b;i++)selected.push(i-1);}if(!selected.length)throw Error('Choose at least one page.');return selected;}
-async function fileChosen(){resetResults();const picked=[...$('filePicker').files];if(!picked.length)return;
+async function fileChosen(){resetResults();const picked=[...$('filePicker').files];if(!picked.length)return;state.placement=null;$('placementPin').hidden=true;
  try{if(state.mode==='photos'){state.files=picked.filter(f=>f.type.startsWith('image/'));if(state.files.length!==picked.length)throw Error('Choose image files only.');if(state.files.length>50)throw Error('Limit is 50 images.');}
  else {if(picked.length>20)throw Error('Limit is 20 PDF files.');for(const f of picked){if(f.size>core.FILE_LIMIT)throw Error(`File too large: ${f.name}`);}state.files=picked;state.bytes=await core.readPdfFile(picked[0]);}
  drawFiles();if(state.mode==='view'){$('fileInputArea').hidden=true;$('viewerFilename').textContent=picked[0].name;state.zoom=1;}if(!['photos','merge','text','blank'].includes(state.mode)&&state.bytes){state.page=0;await refreshPreview();}
@@ -79,6 +80,7 @@ async function refreshPreview(){
     state.preview={doc,close};
     $('editorView').hidden=false;
     if(state.mode==='view') $('workspace').classList.add('viewer-active');
+    $('viewerJumpPage').max=String(doc.numPages);
     await drawPreview();
   } catch(e) {
     const detail=errorMessage(e);
@@ -112,6 +114,10 @@ async function drawPreview(){
   if(!p)return;
   state.page=Math.max(0,Math.min(state.page,p.doc.numPages-1));
   $('pagePosition').textContent=`${state.page+1} / ${p.doc.numPages}`;
+  $('viewerJumpPage').value=String(state.page+1);
+  $('viewerTextPanel').hidden=true;
+  if(state.placement && state.placement.page!==state.page)state.placement=null;
+  $('placementPin').hidden=true;
   if($('pageNo'))$('pageNo').value=String(state.page+1);
   $('prevPage').disabled=state.page===0;
   $('nextPage').disabled=state.page===p.doc.numPages-1;
@@ -133,6 +139,7 @@ async function drawPreview(){
       if(ticket!==state.renderRequest||p!==state.preview)return;
       $('pdfCanvas').hidden=false;
       $('previewPlaceholder').hidden=true;
+      syncPlacementPin();
     }catch(e){
       if(ticket===state.renderRequest&&p===state.preview)showPreviewError(errorMessage(e));
     }
@@ -151,7 +158,7 @@ function openNativePdf(){
 }
 function setZoom(value){state.zoom=Math.max(0.65,Math.min(3,Math.round(value*100)/100));void drawPreview();}
 function pageIndex(){const v=Number(fieldValue('pageNo'))-1;const count=state.preview?.doc.numPages||0;if(!Number.isInteger(v)||v<0||v>=count)throw Error(`Enter a page between 1 and ${count}.`);return v;}
-async function historyAction(fn){if(!state.bytes)throw Error('Choose a PDF first.');const original=state.bytes;const updated=await fn(original);state.history.push(original);if(state.history.length>5)state.history.shift();state.bytes=updated;state.redo=[];resetResults();await refreshPreview();$('utilityButtons').hidden=false;}
+async function historyAction(fn){if(!state.bytes)throw Error('Choose a PDF first.');const original=state.bytes;const updated=await fn(original);state.placement=null;$('placementPin').hidden=true;state.history.push(original);if(state.history.length>5)state.history.shift();state.bytes=updated;state.redo=[];resetResults();await refreshPreview();$('utilityButtons').hidden=false;}
 function bindOrganise(){const actions={rotateLeft:()=>core.rotatePage(state.bytes,state.page,-90),rotateRight:()=>core.rotatePage(state.bytes,state.page,90),insertPage:()=>core.insertBlank(state.bytes,state.page),deletePage:async()=>{const d=await core.describe(state.bytes);if(d.pageCount<2)throw Error('Cannot delete the only page.');return core.reorderPages(state.bytes,Array.from({length:d.pageCount},(_,i)=>i).filter(i=>i!==state.page));},moveUp:async()=>{const d=await core.describe(state.bytes);if(state.page===0)throw Error('Already the first page.');const inds=Array.from({length:d.pageCount},(_,i)=>i);[inds[state.page-1],inds[state.page]]=[inds[state.page],inds[state.page-1]];state.page--;return core.reorderPages(state.bytes,inds);},moveDown:async()=>{const d=await core.describe(state.bytes);if(state.page===d.pageCount-1)throw Error('Already the last page.');const inds=Array.from({length:d.pageCount},(_,i)=>i);[inds[state.page+1],inds[state.page]]=[inds[state.page],inds[state.page+1]];state.page++;return core.reorderPages(state.bytes,inds);}};for(const [key,func] of Object.entries(actions)){$(key).onclick=async()=>{try{await historyAction(func);status('Change applied. Select Save edited PDF when ready.',true);}catch(e){status(errorMessage(e));}};}}
 async function showFields(){const infos=await core.listFields(state.bytes);const target=$('formFields');target.replaceChildren();if(!infos.length){target.textContent='No interactive form fields were found in this PDF.';return;}for(const info of infos){const wrapper=document.createElement('label');wrapper.className='field';const cap=document.createElement('span');cap.textContent=info.name;let el;if(info.type==='PDFCheckBox'){el=document.createElement('input');el.type='checkbox';}else{el=document.createElement('input');el.type='text';el.value=info.value||'';el.placeholder=info.type==='PDFTextField'?'Enter a value':`Choose a valid ${info.type} option`; }el.dataset.field=info.name;el.dataset.kind=info.type;wrapper.append(cap,el);target.append(wrapper);}}
 async function processAction(){if(state.busy)return;if(state.mode==='view'){hide();return;}state.busy=true;$('runAction').disabled=true;const action=$('runAction').textContent;$('runAction').textContent='Working…';resetResults();
@@ -160,13 +167,13 @@ async function processAction(){if(state.busy)return;if(state.mode==='view'){hide
   case 'organise':result=state.bytes;name='Edited.pdf';break;
   case 'merge':{const inputs=[];for(const file of state.files)inputs.push(await core.readPdfFile(file));result=await core.mergePdfs(inputs);name='Merged.pdf';break;}
   case 'split':{const d=await core.describe(state.bytes);if(fieldValue('splitMethod')==='zip'){result=await core.splitZip(state.bytes,(n,t)=>status(`Splitting ${n} of ${t} pages…`));name='Split-pages.zip';isZip=true;}else {result=await core.extractPages(state.bytes,parseRange(fieldValue('pageRange'),d.pageCount));name='Extracted-pages.pdf';}break;}
-  case 'sign':if(!state.signature)throw Error('Draw your signature first.');result=await core.signPdf(state.bytes,pageIndex(),$('signCanvas').toDataURL('image/png'),{position:fieldValue('signPosition'),width:Number(fieldValue('signWidth'))});name='Signed.pdf';break;
+  case 'sign':if(!state.signature)throw Error('Draw your signature first.');result=await core.signPdf(state.bytes,state.placement?.page??pageIndex(),$('signCanvas').toDataURL('image/png'),{position:fieldValue('signPosition'),width:Number(fieldValue('signWidth')),...(state.placement?{x:state.placement.x,y:state.placement.y}:{})});name='Signed.pdf';break;
   case 'photos':result=await core.photosToPdf(state.files,{paper:fieldValue('paperSize'),fit:fieldValue('photoFit')},(n,t)=>status(`Converting ${n} of ${t} images…`));name='Photos.pdf';break;
   case 'text':result=await core.createTextPdf(fieldValue('documentTitle'),fieldValue('documentText'),{paper:fieldValue('paperSize'),fontSize:Number(fieldValue('fontSize'))});name=core.safeName(fieldValue('documentTitle'));break;
   case 'blank':result=await core.makeBlank(fieldValue('paperSize'),Number(fieldValue('blankCount')));name='Blank-pages.pdf';break;
   case 'watermark':result=await core.addWatermark(state.bytes,fieldValue('watermarkText'),{opacity:Number(fieldValue('watermarkOpacity'))});name='Watermarked.pdf';break;
   case 'number':result=await core.addPageNumbers(state.bytes,{prefix:fieldValue('numberPrefix'),start:Number(fieldValue('numberStart')),position:fieldValue('numberPosition')});name='Numbered.pdf';break;
-  case 'annotate':result=await core.addText(state.bytes,pageIndex(),fieldValue('stampText'),{x:Number(fieldValue('stampX')),y:Number(fieldValue('stampY')),size:Number(fieldValue('stampSize'))});name='Annotated.pdf';break;
+  case 'annotate':result=await core.addText(state.bytes,state.placement?.page??pageIndex(),fieldValue('stampText'),{x:state.placement?.x??Number(fieldValue('stampX')),y:state.placement?.y??Number(fieldValue('stampY')),size:Number(fieldValue('stampSize'))});name='Annotated.pdf';break;
   case 'stamp':{const file=$('stampImage')?.files?.[0];if(!file)throw Error('Choose a PNG or JPEG image.');if(!['image/png','image/jpeg'].includes(file.type))throw Error('Choose PNG or JPEG.');if(file.size>20*1024*1024)throw Error('Maximum stamp image size is 20 MB.');result=await core.addImage(state.bytes,pageIndex(),new Uint8Array(await file.arrayBuffer()),{width:Number(fieldValue('stampWidth')),position:fieldValue('stampPosition')});name='Image-stamped.pdf';break;}
   case 'forms':{const values={};document.querySelectorAll('[data-field]').forEach(el=>{values[el.dataset.field]=el.type==='checkbox'?el.checked:el.value;});result=await core.fillFields(state.bytes,values,{flatten:$('flattenFields').checked});name='Filled-form.pdf';break;}
   case 'export':result=await exportPngsAsZip(state.bytes,core.JSZip,(n,t)=>status(`Rendering ${n} of ${t} pages…`));name='PDF-images.zip';isZip=true;break;
@@ -174,6 +181,69 @@ async function processAction(){if(state.busy)return;if(state.mode==='view'){hide
  }
  const blob=result instanceof Blob?result:new Blob([result],{type:isZip?'application/zip':'application/pdf'});fileResult(blob,name);status('Created locally. Tap Save / share to keep your file.',true);
  }catch(e){status('Could not complete: '+errorMessage(e));}finally{state.busy=false;$('runAction').disabled=false;$('runAction').textContent=action;}}
+
+
+/** UI-only preview operations; no search index or document bytes leave this device. */
+function syncPlacementPin(){
+  const pin=$('placementPin'),canvas=$('pdfCanvas'),selection=state.placement;
+  if(!selection||selection.page!==state.page||canvas.hidden){pin.hidden=true;return;}
+  // A marker makes page-specific coordinates visible before committing an edit.
+  pin.style.left=`${canvas.offsetLeft+canvas.clientWidth*selection.relativeX}px`;
+  pin.style.top=`${canvas.offsetTop+canvas.clientHeight*selection.relativeY}px`;
+  pin.hidden=false;
+}
+async function selectPlacement(event){
+  if(!['sign','annotate'].includes(state.mode)||!state.preview)return;
+  const page=await state.preview.doc.getPage(state.page);
+  const viewport=page.getViewport({scale:1});
+  const location=tapToPdfPoint(viewport,$('pdfCanvas').getBoundingClientRect(),event.clientX,event.clientY);
+  state.placement={page:state.page,...location};
+  syncPlacementPin();
+  status(`Position selected on page ${state.page+1}. Tap Save to apply.`,true);
+}
+async function showSelectablePageText(){
+  if(!state.preview)return;
+  try {
+    const page=await state.preview.doc.getPage(state.page);
+    const contents=await page.getTextContent();
+    const text=normaliseText(contents.items||[]);
+    $('viewerTextContent').value=text || 'No selectable text found. This page may be a scan; OCR is not included.';
+    $('viewerTextPanel').hidden=false;
+    $('viewerTextContent').focus({preventScroll:true});
+  }catch(e){$('viewerSearchResults').textContent='Could not extract text: '+errorMessage(e);$('viewerSearchResults').hidden=false;}
+}
+async function findInDocument(event){
+  event?.preventDefault?.();
+  if(!state.preview)return;
+  const doc=state.preview.doc,query=$('viewerSearch').value.trim(),token=++state.searchToken;
+  const target=$('viewerSearchResults');target.hidden=false;target.textContent='Searching document…';
+  try{
+    const results=await searchDocument(doc,query,{maxResults:80,cancelled:()=>token!==state.searchToken||doc!==state.preview?.doc,onProgress:(n,total)=>{if(token===state.searchToken)target.textContent=`Searching page ${n} of ${total}…`;}});
+    if(token!==state.searchToken||doc!==state.preview?.doc)return;
+    target.replaceChildren();
+    if(!results.length){target.textContent='No matching selectable text. Scanned PDFs require OCR.';return;}
+    const summary=document.createElement('span');summary.className='search-count';summary.textContent=`Found on ${results.length} page${results.length===1?'':'s'}`;target.append(summary);
+    results.forEach(({page,snippet})=>{
+      const b=document.createElement('button');b.type='button';b.className='search-result';
+      const n=document.createElement('b');n.textContent=`Page ${page+1}`;
+      const excerpt=document.createElement('span');excerpt.textContent=snippet;
+      b.append(n,excerpt);b.addEventListener('click',()=>{state.page=page;void drawPreview();});target.append(b);
+    });
+  }catch(err){if(token===state.searchToken)target.textContent=errorMessage(err);}
+}
+function jumpToPage(){
+  if(!state.preview)return;
+  const n=Number($('viewerJumpPage').value);
+  if(!Number.isInteger(n)||n<1||n>state.preview.doc.numPages){$('viewerJumpPage').setCustomValidity('Enter a valid PDF page number.');$('viewerJumpPage').reportValidity();return;}
+  $('viewerJumpPage').setCustomValidity('');state.page=n-1;void drawPreview();
+}
+$('viewerSearchForm').addEventListener('submit',findInDocument);
+$('viewerClearSearch').onclick=()=>{state.searchToken++;$('viewerSearch').value='';$('viewerSearchResults').replaceChildren();$('viewerSearchResults').hidden=true;};
+$('viewerJump').onclick=jumpToPage;
+$('viewerJumpPage').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();jumpToPage();}});
+$('viewerCopyText').onclick=showSelectablePageText;
+$('viewerCloseText').onclick=()=>{$('viewerTextPanel').hidden=true;};
+$('pdfCanvas').addEventListener('pointerup',e=>{void selectPlacement(e).catch(err=>status(errorMessage(err)));});
 
 $('toolGrid').addEventListener('click',e=>{const button=e.target.closest('[data-mode]');if(button)show(button.dataset.mode);});$('quickOpen').onclick=()=>show('view');$('chooseFiles').onclick=()=>$('filePicker').click();$('filePicker').onchange=fileChosen;$('closeWorkspace').onclick=hide;$('workspaceScrim').onclick=hide;$('runAction').onclick=processAction;$('shareButton').onclick=share;$('resetTool').onclick=()=>show(state.mode);$('prevPage').onclick=()=>{state.page--;void drawPreview()};$('nextPage').onclick=()=>{state.page++;void drawPreview()};$('zoomOut').onclick=()=>setZoom(state.zoom/1.25);$('zoomIn').onclick=()=>setZoom(state.zoom*1.25);$('zoomFit').onclick=()=>setZoom(1);$('nativeViewer').onclick=openNativePdf;$('viewerChangeFile').onclick=()=>{$('filePicker').value='';$('filePicker').click()};
 $('undoButton').onclick=async()=>{if(!state.history.length)return;state.redo.push(state.bytes);state.bytes=state.history.pop();await refreshPreview();};$('redoButton').onclick=async()=>{if(!state.redo.length)return;state.history.push(state.bytes);state.bytes=state.redo.pop();await refreshPreview();};
@@ -201,4 +271,28 @@ $('previewBox').addEventListener('touchmove', e=>{
 },{passive:true});
 $('previewBox').addEventListener('touchend', e=>{
   if(e.touches.length===0&&state.pendingPinchZoom){const zoom=state.pendingPinchZoom;state.pendingPinchZoom=null;setZoom(zoom);}
+},{passive:true});
+
+// Optional keyboard page navigation when the viewer, not an input, has focus.
+document.addEventListener('keydown',e=>{
+  if(state.mode!=='view'||!state.preview||$('workspace').hidden)return;
+  if(['INPUT','TEXTAREA','SELECT','BUTTON'].includes(document.activeElement?.tagName))return;
+  if(e.key==='ArrowRight' && state.page<state.preview.doc.numPages-1){state.page++;void drawPreview();e.preventDefault();}
+  if(e.key==='ArrowLeft' && state.page>0){state.page--;void drawPreview();e.preventDefault();}
+});
+
+// Swipe to change pages at fit-to-width; zoomed pages retain ordinary panning.
+let pageSwipe=null;
+$('previewBox').addEventListener('touchstart',e=>{
+  if(state.mode==='view'&&state.preview&&state.zoom<=1.03&&e.touches.length===1){
+    pageSwipe={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  } else pageSwipe=null;
+},{passive:true});
+$('previewBox').addEventListener('touchend',e=>{
+  if(!pageSwipe||state.mode!=='view'||!state.preview||e.touches.length>0)return;
+  const last=e.changedTouches[0],dx=last.clientX-pageSwipe.x,dy=last.clientY-pageSwipe.y;
+  pageSwipe=null;
+  if(Math.abs(dx)<85||Math.abs(dy)>65)return;
+  const step=dx<0?1:-1, next=state.page+step;
+  if(next>=0&&next<state.preview.doc.numPages){state.page=next;void drawPreview();}
 },{passive:true});

@@ -72,7 +72,24 @@
           <div class="preview-page-controls"><button id="prevPage" type="button" aria-label="Previous PDF page">‹</button><span id="pagePosition" aria-live="polite">1 / 1</span><button id="nextPage" type="button" aria-label="Next PDF page">›</button></div>
           <div class="viewer-zoom-controls"><button id="zoomOut" type="button" aria-label="Zoom out">−</button><button id="zoomFit" type="button" aria-label="Fit page to screen">Fit</button><button id="zoomIn" type="button" aria-label="Zoom in">＋</button><span id="zoomLevel" aria-live="polite">100%</span></div>
         </div>
-        <div class="pdf-preview" id="previewBox"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="previewPlaceholder" class="preview-placeholder" role="alert">Preparing preview…</div></div><div class="viewer-bottom" id="viewerBottom"><button id="nativeViewer" type="button" class="mini-btn">Open in iPhone PDF viewer ↗</button><span>Pinch to zoom or use the zoom buttons</span></div>
+        <div class="viewer-pro-tools" id="viewerProTools">
+          <form id="viewerSearchForm" class="viewer-search-form" role="search">
+            <label for="viewerSearch" class="visually-hidden">Find text in PDF</label>
+            <input id="viewerSearch" type="search" placeholder="Find text in PDF" maxlength="100" autocomplete="off" aria-label="Find text in this PDF">
+            <button type="submit" class="mini-btn" id="viewerFind">Find</button>
+            <button type="button" class="mini-btn" id="viewerClearSearch" aria-label="Clear search">×</button>
+          </form>
+          <div class="viewer-page-shortcuts">
+            <label for="viewerJumpPage">Page</label>
+            <input id="viewerJumpPage" type="number" inputmode="numeric" min="1" value="1" aria-label="Go to page number">
+            <button type="button" id="viewerJump" class="mini-btn">Go</button>
+            <button type="button" id="viewerCopyText" class="mini-btn">Select page text</button>
+          </div>
+          <div id="viewerSearchResults" class="viewer-search-results" aria-live="polite" hidden></div>
+        </div>
+        <div class="pdf-preview" id="previewBox"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="placementPin" class="placement-pin" hidden aria-hidden="true">✚</div><div id="previewPlaceholder" class="preview-placeholder" role="alert">Preparing preview…</div></div>
+        <div id="viewerTextPanel" class="viewer-text-panel" hidden><div class="viewer-text-heading"><strong>Selectable text on this page</strong><button id="viewerCloseText" type="button" class="mini-btn">Close</button></div><p>Long-press to select or copy text. Scanned pages need OCR.</p><textarea id="viewerTextContent" readonly rows="5" aria-label="Extracted text from current PDF page"></textarea></div>
+        <div id="tapPlacementHelp" class="tap-placement-help" hidden>Tap the PDF preview to choose the exact position. Then save your PDF. Your original is unchanged.</div><div class="viewer-bottom" id="viewerBottom"><button id="nativeViewer" type="button" class="mini-btn">Open in iPhone PDF viewer ↗</button><span>Pinch to zoom or use the zoom buttons</span></div>
       </div>
       <div class="form-area" id="formArea"></div>
       <div class="field-grid" id="utilityButtons" hidden>
