@@ -114,3 +114,17 @@
   color: #ffffff;
   -webkit-text-fill-color: #ffffff;
 }
+
+/* v1.4.2 — Fix invisible navigation icons */
+
+#closeWorkspace,
+#workspaceHelp,
+#viewerClearSearch,
+#closeHelp,
+#helpBtn {
+  color: #18343b !important;
+  -webkit-text-fill-color: #18343b !important;
+  background-color: #ffffff !important;
+  color-scheme: light;
+  opacity: 1;
+}
