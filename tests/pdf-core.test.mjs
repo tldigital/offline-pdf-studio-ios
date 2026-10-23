@@ -24,7 +24,7 @@ test('adds watermark, page numbering and annotations',async()=>{let b=await make
 test('fills interactive PDF form fields',async()=>{const d=await PDFDocument.create();d.addPage([612,792]);const f=d.getForm();f.createTextField('Full Name').addToPage(d.getPage(0));f.createCheckBox('I Agree').addToPage(d.getPage(0));const src=new Uint8Array(await d.save());assert.equal((await listFields(src)).length,2);const out=await fillFields(src,{'Full Name':'Jane Doe','I Agree':true});const result=await openPdf(out);assert.equal(result.getForm().getTextField('Full Name').getText(),'Jane Doe');assert.equal(result.getForm().getCheckBox('I Agree').isChecked(),true);});
 test('creates searchable text PDFs',async()=>{const b=await createTextPdf('Work summary','The quick brown fox jumps over the lazy dog.',{fontSize:12,paper:'A4'});assert.equal((await describe(b)).pageCount,1);});
 test('splits all PDF pages to ZIP',async()=>{const src=await makeBlank('A4',3);const blob=await splitZip(src);assert(blob.size>300);});
-test('handles malicious names and bad headers safely',async()=>{assert.equal(safeName('../../<script>.pdf'),'script.pdf.pdf');await assert.rejects(()=>openPdf(new Uint8Array([1,2,3])),/not a PDF/i);});
+test('handles malicious names and bad headers safely',async()=>{assert.equal(safeName('../../<script>.pdf'),'script.pdf');await assert.rejects(()=>openPdf(new Uint8Array([1,2,3])),/not a PDF/i);});
 test('cannot merge a single PDF',async()=>{const one=await makeBlank('A4',1);await assert.rejects(()=>mergePdfs([one]));});
 
 test('signature at page-tap coordinates saves a valid PDF',async()=>{
