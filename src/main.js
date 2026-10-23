@@ -18,7 +18,7 @@ const TOOL={
   export:['PDF to PNG','Export document pages as PNG images in a ZIP file.'],
   view:['View PDF','Preview pages directly on this device.']
 };
-const state={mode:'view',files:[],image:null,bytes:null,history:[],redo:[],page:0,preview:null,result:null,busy:false,signature:false,signatureCtx:null,signatureDrawing:false};
+const state={mode:'view',files:[],image:null,bytes:null,history:[],redo:[],page:0,preview:null,result:null,busy:false,signature:false,signatureCtx:null,signatureDrawing:false,zoom:1,renderRequest:0,renderQueue:Promise.resolve()};
 const input=(id,label,{type='text',value='',min,max,step,placeholder,accept}={})=>`<label class="field"><span>${label}</span><input id="${id}" type="${type}" value="${value}" ${min!==undefined?`min="${min}"`:''} ${max!==undefined?`max="${max}"`:''} ${step!==undefined?`step="${step}"`:''} ${placeholder?`placeholder="${placeholder}"`:''} ${accept?`accept="${accept}"`:''}></label>`;
 const select=(id,label,entries)=>`<label class="field"><span>${label}</span><select id="${id}">${entries.map(([val,title])=>`<option value="${val}">${title}</option>`).join('')}</select></label>`;
 const pagesSelect=()=>input('pageNo','Page number',{type:'number',value:'1',min:1});
@@ -31,8 +31,8 @@ function fileResult(blob,name){state.result={blob,name};$('resultPanel').hidden=
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function share(){if(!state.result)return;const {blob,name}=state.result;try{const file=new File([blob],name,{type:blob.type});if(navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],title:name});return;}}catch(err){if(err.name==='AbortError')return;}download(blob,name);status('File saved or sent to Safari Downloads. Check Files → Downloads.',true);}
 function resetResults(){state.result=null;$('resultPanel').hidden=true;status('');}
-function closePreview(){if(state.preview){state.preview.close();state.preview=null;}}
-function clearEditor(){closePreview();state.files=[];state.image=null;state.bytes=null;state.history=[];state.redo=[];state.page=0;state.signature=false;resetResults();$('filePicker').value='';$('fileStack').replaceChildren();$('selectedInfo').hidden=true;$('editorView').hidden=true;$('utilityButtons').hidden=true;}
+function closePreview(){state.renderRequest++;if(state.preview){state.preview.close();state.preview=null;}}
+function clearEditor(){$('workspace').classList.remove('viewer-active');closePreview();state.files=[];state.image=null;state.bytes=null;state.history=[];state.redo=[];state.page=0;state.zoom=1;state.signature=false;resetResults();$('filePicker').value='';$('fileStack').replaceChildren();$('selectedInfo').hidden=true;$('editorView').hidden=true;$('utilityButtons').hidden=true;}
 function getForms(mode){switch(mode){
 case 'organise':return `<p class="note">Use the controls below to modify your document. Each operation can be undone before saving.</p><div class="control-row"><button id="moveUp" class="mini-btn">↑ Move up</button><button id="moveDown" class="mini-btn">↓ Move down</button><button id="rotateLeft" class="mini-btn">↺ Rotate</button><button id="rotateRight" class="mini-btn">↻ Rotate</button></div><div class="control-row"><button id="deletePage" class="mini-btn warning">Remove page</button><button id="insertPage" class="mini-btn">＋ Blank page</button></div>`;
 case 'merge':return `<p class="note">Select 2–20 PDFs. Use the arrows in the file list to arrange their merge order.</p>`;
@@ -49,7 +49,7 @@ case 'forms':return `<div id="formFields"><p class="note">Open a fillable PDF an
 case 'export':return `<p class="note">Exports up to 30 pages at high resolution. The PNG images are placed into a ZIP archive.</p>`;
 case 'view':return `<p class="note">Use the page navigation above to browse your PDF. Original file stays unchanged.</p>`;
 }}
-function show(mode){if(!TOOL[mode])return;state.mode=mode;clearEditor();$('workspaceTitle').textContent=TOOL[mode][0];$('workspaceSubtitle').textContent=TOOL[mode][1];$('formArea').innerHTML=getForms(mode);$('workspace').hidden=false;$('workspaceScrim').hidden=false;document.body.classList.add('panel-open');
+function show(mode){if(!TOOL[mode])return;state.mode=mode;clearEditor();$('workspaceTitle').textContent=TOOL[mode][0];$('workspaceSubtitle').textContent=TOOL[mode][1];$('formArea').innerHTML=getForms(mode);$('workspace').hidden=false;$('workspaceScrim').hidden=false;document.body.classList.add('panel-open');$('workspace').classList.toggle('viewer-workspace',mode==='view');
  const noPdf=['blank','text','photos'].includes(mode);$('fileInputArea').hidden=noPdf;$('editorView').hidden=true;
  $('filePicker').accept=mode==='photos'?'image/*':'.pdf,application/pdf';$('filePicker').multiple=['photos','merge'].includes(mode);
  $('uploadTitle').textContent=mode==='photos'?'Select photos':mode==='merge'?'Select multiple PDFs':'Select a PDF';$('uploadDetails').textContent='Files are processed locally in your browser';
@@ -66,13 +66,76 @@ function parseRange(input,max){const selected=[];for(const part of input.replace
 async function fileChosen(){resetResults();const picked=[...$('filePicker').files];if(!picked.length)return;
  try{if(state.mode==='photos'){state.files=picked.filter(f=>f.type.startsWith('image/'));if(state.files.length!==picked.length)throw Error('Choose image files only.');if(state.files.length>50)throw Error('Limit is 50 images.');}
  else {if(picked.length>20)throw Error('Limit is 20 PDF files.');for(const f of picked){if(f.size>core.FILE_LIMIT)throw Error(`File too large: ${f.name}`);}state.files=picked;state.bytes=await core.readPdfFile(picked[0]);}
- drawFiles();if(!['photos','merge','text','blank'].includes(state.mode)&&state.bytes){state.page=0;await refreshPreview();}
+ drawFiles();if(state.mode==='view'){$('fileInputArea').hidden=true;$('viewerFilename').textContent=picked[0].name;state.zoom=1;}if(!['photos','merge','text','blank'].includes(state.mode)&&state.bytes){state.page=0;await refreshPreview();}
  if(state.mode==='forms'&&state.bytes)await showFields();if(state.mode==='split'&&state.bytes) {const d=await core.describe(state.bytes);$('pageRange').value=`1-${d.pageCount}`;}
- }catch(e){status(errorMessage(e));}}
+ }catch(e){if(state.mode==='view'){$('workspace').classList.remove('viewer-active');$('fileInputArea').hidden=false;}status(errorMessage(e));}}
 function drawFiles(){$('fileStack').replaceChildren();state.files.forEach((file,i)=>{const row=document.createElement('div');row.className='file-entry';const name=document.createElement('div');name.className='file-title';const title=document.createElement('b');title.textContent=file.name;const small=document.createElement('small');small.textContent=fmt(file.size);name.append(title,small);const actions=document.createElement('div');actions.className='list-actions';if(['merge','photos'].includes(state.mode)){[['↑',i>0,-1],['↓',i<state.files.length-1,1]].forEach(([label,enabled,delta])=>{const b=document.createElement('button');b.textContent=label;b.disabled=!enabled;b.title=`Move ${delta===-1?'earlier':'later'}`;b.onclick=()=>{[state.files[i],state.files[i+delta]]=[state.files[i+delta],state.files[i]];drawFiles();};actions.append(b);});}row.append(name,actions);$('fileStack').append(row);});$('selectedInfo').hidden=!state.files.length;$('selectedInfo').textContent=`${state.files.length} file${state.files.length===1?'':'s'} selected`;
 }
-async function refreshPreview(){if(!state.bytes)return;closePreview();try{const {doc,close}=await openPreview(state.bytes);state.preview={doc,close};$('editorView').hidden=false;await drawPreview();}catch(e){$('editorView').hidden=true;status('Preview unavailable: '+errorMessage(e));}}
-async function drawPreview(){const p=state.preview;if(!p)return;state.page=Math.max(0,Math.min(state.page,p.doc.numPages-1));$('pagePosition').textContent=`${state.page+1} / ${p.doc.numPages}`;if($('pageNo'))$('pageNo').value=String(state.page+1);$('prevPage').disabled=state.page===0;$('nextPage').disabled=state.page===p.doc.numPages-1;const marker=p;try{await renderPage(p.doc,state.page,$('pdfCanvas'));if(state.preview!==marker)return;$('previewPlaceholder').hidden=true;}catch(e){$('previewPlaceholder').textContent='Page preview unavailable';$('previewPlaceholder').hidden=false;}}
+async function refreshPreview(){
+  if(!state.bytes)return;
+  closePreview();
+  try {
+    const {doc,close}=await openPreview(state.bytes);
+    state.preview={doc,close};
+    $('editorView').hidden=false;
+    if(state.mode==='view') $('workspace').classList.add('viewer-active');
+    await drawPreview();
+  } catch(e) {
+    $('editorView').hidden=true;
+    $('workspace').classList.remove('viewer-active');
+    if(state.mode==='view') $('fileInputArea').hidden=false;
+    status('Cannot open preview: '+errorMessage(e)+' Try another PDF, or open the original in the Files app.');
+  }
+}
+function showPreviewError(message){
+  const placeholder=$('previewPlaceholder');
+  placeholder.textContent='Could not render this page: '+message+' — Try “Open in iPhone PDF viewer” below.';
+  placeholder.hidden=false;
+  $('pdfCanvas').hidden=true;
+}
+async function drawPreview(){
+  const p=state.preview;
+  if(!p)return;
+  state.page=Math.max(0,Math.min(state.page,p.doc.numPages-1));
+  $('pagePosition').textContent=`${state.page+1} / ${p.doc.numPages}`;
+  if($('pageNo'))$('pageNo').value=String(state.page+1);
+  $('prevPage').disabled=state.page===0;
+  $('nextPage').disabled=state.page===p.doc.numPages-1;
+  $('zoomLevel').textContent=Math.round(state.zoom*100)+'%';
+  const ticket=++state.renderRequest;
+  const chosenPage=state.page;
+  const chosenZoom=state.zoom;
+  $('previewPlaceholder').textContent='Rendering page…';
+  $('previewPlaceholder').hidden=false;
+  // Serialise renders: PDF.js cannot render two pages simultaneously onto one canvas.
+  const next=state.renderQueue.catch(()=>{}).then(async()=>{
+    if(ticket!==state.renderRequest||p!==state.preview)return;
+    try {
+      const box=$('previewBox');
+      await renderPage(p.doc,chosenPage,$('pdfCanvas'),{
+        cssWidth:Math.max(200,box.clientWidth-24),zoom:chosenZoom,
+        pixelRatio:window.devicePixelRatio||1
+      });
+      if(ticket!==state.renderRequest||p!==state.preview)return;
+      $('pdfCanvas').hidden=false;
+      $('previewPlaceholder').hidden=true;
+    }catch(e){
+      if(ticket===state.renderRequest&&p===state.preview)showPreviewError(errorMessage(e));
+    }
+  });
+  state.renderQueue=next;
+  return next;
+}
+function openNativePdf(){
+  if(!state.bytes)return;
+  // No upload: iOS Safari/Files displays a Blob URL created on the device.
+  const blob=new Blob([state.bytes],{type:'application/pdf'});
+  const url=URL.createObjectURL(blob);
+  const tab=window.open(url,'_blank');
+  if(!tab){download(blob,state.files[0]?.name||'Document.pdf');status('Saved the PDF to Downloads. Open it from Files.',true);}
+  setTimeout(()=>URL.revokeObjectURL(url),120000);
+}
+function setZoom(value){state.zoom=Math.max(0.65,Math.min(3,Math.round(value*100)/100));void drawPreview();}
 function pageIndex(){const v=Number(fieldValue('pageNo'))-1;const count=state.preview?.doc.numPages||0;if(!Number.isInteger(v)||v<0||v>=count)throw Error(`Enter a page between 1 and ${count}.`);return v;}
 async function historyAction(fn){if(!state.bytes)throw Error('Choose a PDF first.');const original=state.bytes;const updated=await fn(original);state.history.push(original);if(state.history.length>5)state.history.shift();state.bytes=updated;state.redo=[];resetResults();await refreshPreview();$('utilityButtons').hidden=false;}
 function bindOrganise(){const actions={rotateLeft:()=>core.rotatePage(state.bytes,state.page,-90),rotateRight:()=>core.rotatePage(state.bytes,state.page,90),insertPage:()=>core.insertBlank(state.bytes,state.page),deletePage:async()=>{const d=await core.describe(state.bytes);if(d.pageCount<2)throw Error('Cannot delete the only page.');return core.reorderPages(state.bytes,Array.from({length:d.pageCount},(_,i)=>i).filter(i=>i!==state.page));},moveUp:async()=>{const d=await core.describe(state.bytes);if(state.page===0)throw Error('Already the first page.');const inds=Array.from({length:d.pageCount},(_,i)=>i);[inds[state.page-1],inds[state.page]]=[inds[state.page],inds[state.page-1]];state.page--;return core.reorderPages(state.bytes,inds);},moveDown:async()=>{const d=await core.describe(state.bytes);if(state.page===d.pageCount-1)throw Error('Already the last page.');const inds=Array.from({length:d.pageCount},(_,i)=>i);[inds[state.page+1],inds[state.page]]=[inds[state.page],inds[state.page+1]];state.page++;return core.reorderPages(state.bytes,inds);}};for(const [key,func] of Object.entries(actions)){$(key).onclick=async()=>{try{await historyAction(func);status('Change applied. Select Save edited PDF when ready.',true);}catch(e){status(errorMessage(e));}};}}
@@ -98,8 +161,30 @@ async function processAction(){if(state.busy)return;if(state.mode==='view'){hide
  const blob=result instanceof Blob?result:new Blob([result],{type:isZip?'application/zip':'application/pdf'});fileResult(blob,name);status('Created locally. Tap Save / share to keep your file.',true);
  }catch(e){status('Could not complete: '+errorMessage(e));}finally{state.busy=false;$('runAction').disabled=false;$('runAction').textContent=action;}}
 
-$('toolGrid').addEventListener('click',e=>{const button=e.target.closest('[data-mode]');if(button)show(button.dataset.mode);});$('quickOpen').onclick=()=>show('view');$('chooseFiles').onclick=()=>$('filePicker').click();$('filePicker').onchange=fileChosen;$('closeWorkspace').onclick=hide;$('workspaceScrim').onclick=hide;$('runAction').onclick=processAction;$('shareButton').onclick=share;$('resetTool').onclick=()=>show(state.mode);$('prevPage').onclick=()=>{state.page--;drawPreview()};$('nextPage').onclick=()=>{state.page++;drawPreview()};
+$('toolGrid').addEventListener('click',e=>{const button=e.target.closest('[data-mode]');if(button)show(button.dataset.mode);});$('quickOpen').onclick=()=>show('view');$('chooseFiles').onclick=()=>$('filePicker').click();$('filePicker').onchange=fileChosen;$('closeWorkspace').onclick=hide;$('workspaceScrim').onclick=hide;$('runAction').onclick=processAction;$('shareButton').onclick=share;$('resetTool').onclick=()=>show(state.mode);$('prevPage').onclick=()=>{state.page--;void drawPreview()};$('nextPage').onclick=()=>{state.page++;void drawPreview()};$('zoomOut').onclick=()=>setZoom(state.zoom/1.25);$('zoomIn').onclick=()=>setZoom(state.zoom*1.25);$('zoomFit').onclick=()=>setZoom(1);$('nativeViewer').onclick=openNativePdf;$('viewerChangeFile').onclick=()=>{$('filePicker').value='';$('filePicker').click()};
 $('undoButton').onclick=async()=>{if(!state.history.length)return;state.redo.push(state.bytes);state.bytes=state.history.pop();await refreshPreview();};$('redoButton').onclick=async()=>{if(!state.redo.length)return;state.history.push(state.bytes);state.bytes=state.redo.pop();await refreshPreview();};
 for(const btn of ['helpBtn','workspaceHelp'])$(btn).onclick=()=>{$('helpSheet').hidden=false;};for(const btn of ['closeHelp','helpDone'])$(btn).onclick=()=>{$('helpSheet').hidden=true;};
 window.addEventListener('online',()=>{$('offlineText').textContent='No files leave your device'});window.addEventListener('offline',()=>{$('offlineText').textContent='Offline mode · device processing'});
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));}
+
+// Pinch gesture is handled inside the scrollable PDF viewing surface only.
+let pinchStartDistance=0, pinchStartZoom=1;
+$('previewBox').addEventListener('touchstart', e=>{
+  if(state.mode!=='view'||e.touches.length!==2)return;
+  pinchStartDistance=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  pinchStartZoom=state.zoom;
+},{passive:true});
+$('previewBox').addEventListener('touchend', e=>{
+  if(e.touches.length<2&&pinchStartDistance){pinchStartDistance=0;}
+},{passive:true});
+$('previewBox').addEventListener('touchmove', e=>{
+  if(state.mode!=='view'||e.touches.length!==2||!pinchStartDistance)return;
+  const distance=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  // Only redraw when the fingers are released: avoids repeat rendering while gesturing.
+  const value=Math.max(.65,Math.min(3,pinchStartZoom*(distance/pinchStartDistance)));
+  $('zoomLevel').textContent=Math.round(value*100)+'%';
+  state.pendingPinchZoom=value;
+},{passive:true});
+$('previewBox').addEventListener('touchend', e=>{
+  if(e.touches.length===0&&state.pendingPinchZoom){const zoom=state.pendingPinchZoom;state.pendingPinchZoom=null;setZoom(zoom);}
+},{passive:true});

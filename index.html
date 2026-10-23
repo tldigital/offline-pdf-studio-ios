@@ -67,8 +67,12 @@
       <div id="selectedInfo" class="selected-info" hidden></div>
       <div id="fileStack" class="file-stack"></div>
       <div id="editorView" hidden>
-        <div class="preview-toolbar"><div><span class="preview-title">PAGE PREVIEW</span><span id="pagePosition">1 / 1</span></div><div class="preview-actions"><button id="prevPage" aria-label="Previous page">‹</button><button id="nextPage" aria-label="Next page">›</button></div></div>
-        <div class="pdf-preview" id="previewBox"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="previewPlaceholder" class="preview-placeholder">Preparing preview…</div></div>
+        <div class="viewer-file-row" id="viewerFileRow"><span id="viewerFilename">Selected document</span><button id="viewerChangeFile" class="mini-btn" type="button">Change file</button></div>
+        <div class="preview-toolbar" aria-label="PDF page and zoom controls">
+          <div class="preview-page-controls"><button id="prevPage" type="button" aria-label="Previous PDF page">‹</button><span id="pagePosition" aria-live="polite">1 / 1</span><button id="nextPage" type="button" aria-label="Next PDF page">›</button></div>
+          <div class="viewer-zoom-controls"><button id="zoomOut" type="button" aria-label="Zoom out">−</button><button id="zoomFit" type="button" aria-label="Fit page to screen">Fit</button><button id="zoomIn" type="button" aria-label="Zoom in">＋</button><span id="zoomLevel" aria-live="polite">100%</span></div>
+        </div>
+        <div class="pdf-preview" id="previewBox"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="previewPlaceholder" class="preview-placeholder" role="alert">Preparing preview…</div></div><div class="viewer-bottom" id="viewerBottom"><button id="nativeViewer" type="button" class="mini-btn">Open in iPhone PDF viewer ↗</button><span>Pinch to zoom or use the zoom buttons</span></div>
       </div>
       <div class="form-area" id="formArea"></div>
       <div class="field-grid" id="utilityButtons" hidden>
