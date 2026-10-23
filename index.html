@@ -83,13 +83,13 @@
             <label for="viewerJumpPage">Page</label>
             <input id="viewerJumpPage" type="number" inputmode="numeric" min="1" value="1" aria-label="Go to page number">
             <button type="button" id="viewerJump" class="mini-btn">Go</button>
-            <button type="button" id="viewerCopyText" class="mini-btn">Select page text</button>
+            <button type="button" id="viewerCopySelection" class="mini-btn">Copy selection</button><button type="button" id="viewerCopyText" class="mini-btn">Page text (fallback)</button>
           </div>
           <div id="viewerSearchResults" class="viewer-search-results" aria-live="polite" hidden></div>
         </div>
-        <div class="pdf-preview" id="previewBox"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="placementPin" class="placement-pin" hidden aria-hidden="true">✚</div><div id="previewPlaceholder" class="preview-placeholder" role="alert">Preparing preview…</div></div>
+        <div class="pdf-preview" id="previewBox"><div id="pdfPageStage" class="pdf-page-stage"><canvas id="pdfCanvas" aria-label="PDF page preview"></canvas><div id="pdfSearchHighlights" class="pdf-search-highlights" aria-hidden="true"></div><div id="pdfTextLayer" class="textLayer pdf-text-layer" aria-label="Selectable PDF text"></div><div id="placementPin" class="placement-pin" hidden aria-hidden="true">✚</div></div><div id="previewPlaceholder" class="preview-placeholder" role="alert">Preparing preview…</div></div>
         <div id="viewerTextPanel" class="viewer-text-panel" hidden><div class="viewer-text-heading"><strong>Selectable text on this page</strong><button id="viewerCloseText" type="button" class="mini-btn">Close</button></div><p>Long-press to select or copy text. Scanned pages need OCR.</p><textarea id="viewerTextContent" readonly rows="5" aria-label="Extracted text from current PDF page"></textarea></div>
-        <div id="tapPlacementHelp" class="tap-placement-help" hidden>Tap the PDF preview to choose the exact position. Then save your PDF. Your original is unchanged.</div><div class="viewer-bottom" id="viewerBottom"><button id="nativeViewer" type="button" class="mini-btn">Open in iPhone PDF viewer ↗</button><span>Pinch to zoom or use the zoom buttons</span></div>
+        <div id="tapPlacementHelp" class="tap-placement-help" hidden>Tap the PDF preview to choose the exact position. Then save your PDF. Your original is unchanged.</div><div class="viewer-bottom" id="viewerBottom"><button id="nativeViewer" type="button" class="mini-btn">Open in iPhone PDF viewer ↗</button><span>Long-press PDF words to select · Pinch to zoom</span></div>
       </div>
       <div class="form-area" id="formArea"></div>
       <div class="field-grid" id="utilityButtons" hidden>

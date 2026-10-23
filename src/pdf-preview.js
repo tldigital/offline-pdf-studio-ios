@@ -1,5 +1,7 @@
 // The PDF.js legacy build is required for reliable rendering in Safari on iOS 18.
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+// Official PDF.js styles align selectable DOM text with the canvas.
+import 'pdfjs-dist/web/pdf_viewer.css';
 // GitHub Pages serves .js with the correct JavaScript MIME type. A stable URL
 // avoids stale, hashed .mjs URLs in older iPhone/PWA caches.
 // The matching worker is copied from this installed pdfjs-dist version at build time.
@@ -41,6 +43,27 @@ export async function renderPage(doc, pageIndex, canvas, options = 1.4) {
     await page.render({canvas, viewport, background: '#ffffff'}).promise;
     return {width: canvas.width, height: canvas.height};
   } finally {page.cleanup();}
+}
+/** Add real DOM text, aligned at CSS-pixel scale, above the canvas.
+ * Keeps the working stable PDF worker and canvas renderer unchanged. */
+export async function renderTextOverlay(doc, pageIndex, layer, canvas){
+  if(!doc || pageIndex<0 || pageIndex>=doc.numPages)throw Error('Invalid page for text selection.');
+  const page=await doc.getPage(pageIndex+1);
+  const unit=page.getViewport({scale:1});
+  const cssWidth=canvas.getBoundingClientRect().width;
+  if(!cssWidth||!unit.width)throw Error('PDF page is not ready for text selection.');
+  const viewport=page.getViewport({scale:cssWidth/unit.width});
+  layer.replaceChildren();
+  layer.style.setProperty('--scale-factor',String(viewport.scale));
+  layer.style.setProperty('--total-scale-factor',String(viewport.scale));
+  // Existing canvas pixels remain visible; these text nodes are transparent,
+  // but users can long-press/select/copy them directly on the rendered page.
+  const task=new pdfjsLib.TextLayer({
+    textContentSource:page.streamTextContent({includeMarkedContent:false}),
+    container:layer,viewport
+  });
+  await task.render();
+  return task;
 }
 export async function exportPngsAsZip(bytes, zipClass, progress = () => {}) {
   const {doc,close}=await openPreview(bytes);

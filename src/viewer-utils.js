@@ -39,3 +39,30 @@ export function tapToPdfPoint(viewport, rect, clientX, clientY) {
   if(!Number.isFinite(pdfX)||!Number.isFinite(pdfY))throw new Error('Could not calculate PDF placement.');
   return {x:pdfX,y:pdfY,relativeX:x,relativeY:y};
 }
+
+/** Turn a phrase into character offsets across PDF.js text runs. These map
+ * to DOM Range positions, so hits can be painted over the actual PDF page.
+ * A space may be encoded as a separate run (or omitted at a run boundary).
+ */
+export function locateTextMatches(parts,query,{limit=80}={}){
+  if(!Array.isArray(parts)||!query?.trim())return [];
+  const words=query.trim().split(/\s+/u);
+  const escaped=words.map(w=>w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  const expression=new RegExp(escaped.join('\\s*'),'giu');
+  const joined=parts.map(v=>String(v||'')).join('');
+  const boundaries=[0];
+  for(const item of parts)boundaries.push(boundaries.at(-1)+String(item||'').length);
+  const nodeFor=(index,atEnd=false)=>{
+    for(let i=0;i<parts.length;i++){
+      if(index<boundaries[i+1] || (atEnd&&index===boundaries[i+1]))return {node:i,offset:index-boundaries[i]};
+    }
+    return {node:Math.max(0,parts.length-1),offset:String(parts.at(-1)||'').length};
+  };
+  const found=[];
+  for(const hit of joined.matchAll(expression)){
+    if(!hit[0].length)continue;
+    found.push({start:nodeFor(hit.index),end:nodeFor(hit.index+hit[0].length,true)});
+    if(found.length>=limit)break;
+  }
+  return found;
+}

@@ -8,9 +8,10 @@ html=re.sub(r'\s*<meta http-equiv="Content-Security-Policy"[^>]+>', '', html)
 html=html.replace('<link rel="stylesheet" href="./src/style.css">','<style>'+(root/'src/style.css').read_text()+'</style>')
 html=html.replace('<script type="module" src="./src/main.js"></script>','')
 source=(root/'src/main.js').read_text()
-source=re.sub(r'^import \* as core from .*?;\s*','const core=window.mockCore;\n',source,count=1)
-source=re.sub(r'^import \{openPreview,renderPage,exportPngsAsZip\} from .*?;\s*','const {openPreview,renderPage,exportPngsAsZip}=window.mockPreview;\n',source,count=1,flags=re.M)
-source=re.sub(r'^import \{normaliseText,searchDocument,tapToPdfPoint\} from .*?;\s*','const {normaliseText,searchDocument,tapToPdfPoint}=window.mockUtils;\n',source,count=1,flags=re.M)
+source=re.sub(r"^import .*?;\s*",'',source,flags=re.M)
+source=("const core=window.mockCore;\n"
+        "const {openPreview,renderPage,renderTextOverlay,exportPngsAsZip}=window.mockPreview;\n"
+        "const {normaliseText,searchDocument,tapToPdfPoint,locateTextMatches}=window.mockUtils;\n")+source
 mock="""
 window.mockCore={
  FILE_LIMIT:60000000,
@@ -23,8 +24,8 @@ window.mockCore={
  mergePdfs:async()=>new Uint8Array([37,80,68,70,45,49,46,55]),
  photosToPdf:async()=>new Uint8Array([37,80,68,70,45,49,46,55])
 };
-window.mockPreview={openPreview:async()=>({doc:{numPages:2,async getPage(n){return {getViewport(){return {width:200,height:300,convertToPdfPoint(x,y){return [x,300-y]}}},async getTextContent(){return {items:[{str:n===1?'Welcome report':'Second page budget report'}]}}}}},close(){}}),renderPage:async(_,__,canvas)=>{canvas.width=200;canvas.height=300;canvas.style.width='200px';canvas.style.height='300px';},exportPngsAsZip:async()=>new Blob(['test'])};
-window.mockUtils={normaliseText:(parts)=>parts.map(x=>x.str||'').join(' '),async searchDocument(doc,query){return [{page:1,snippet:'Second page budget report'}]},tapToPdfPoint:(v,r,x,y)=>({x:100,y:100,relativeX:.5,relativeY:.5})};
+window.mockPreview={openPreview:async()=>({doc:{numPages:2,async getPage(n){return {getViewport(){return {width:200,height:300,convertToPdfPoint(x,y){return [x,300-y]}}},async getTextContent(){return {items:[{str:n===1?'Welcome report':'Second page budget report'}]}}}}},close(){}}),renderPage:async(_,__,canvas)=>{canvas.width=200;canvas.height=300;canvas.style.width='200px';canvas.style.height='300px';},renderTextOverlay:async(_,index,layer)=>{layer.replaceChildren();const span=document.createElement('span');span.style.cssText='position:absolute;left:24px;top:30px;font-size:20px;';span.textContent=index===1?'Second page budget report':'Welcome report';layer.append(span);return {cancel(){}};},exportPngsAsZip:async()=>new Blob(['test'])};
+window.mockUtils={normaliseText:(parts)=>parts.map(x=>x.str||'').join(' '),async searchDocument(doc,query){return [{page:1,snippet:'Second page budget report'}]},tapToPdfPoint:(v,r,x,y)=>({x:100,y:100,relativeX:.5,relativeY:.5}),locateTextMatches:(items,q)=>{const txt=items.join(''),i=txt.toLowerCase().indexOf(q.toLowerCase());return i<0?[]:[{start:{node:0,offset:i},end:{node:0,offset:i+q.length}}]}};
 """
 with sync_playwright() as pw:
     browser=pw.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
@@ -59,10 +60,24 @@ with sync_playwright() as pw:
     page.locator('#viewerFind').click()
     assert page.locator('.search-result').count()==1
     page.locator('.search-result').first.click()
+    page.wait_for_timeout(100)
+    assert page.locator('.pdf-find-mark').count() >= 1,'Search phrase not highlighted on PDF page'
     assert '2 / 2' in page.locator('#pagePosition').inner_text()
+    assert page.locator('#pdfTextLayer').inner_text().strip()=='Second page budget report'
+    page.evaluate('''() => {
+      Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedText=value}}});
+      const node=document.querySelector('#pdfTextLayer span').firstChild;
+      const selection=window.getSelection();selection.removeAllRanges();
+      const range=document.createRange();range.setStart(node,12);range.setEnd(node,18);
+      selection.addRange(range);
+    }''')
+    page.locator('#viewerCopySelection').click()
+    page.wait_for_timeout(75)
+    assert page.evaluate('window.copiedText')=='budget', 'Selected in-page text was not copied'
     page.locator('#viewerJumpPage').fill('1')
     page.locator('#viewerJump').click()
     assert '1 / 2' in page.locator('#pagePosition').inner_text()
+    assert page.locator('#pdfTextLayer').inner_text().strip()=='Welcome report'
     page.locator('#viewerCopyText').click()
     page.wait_for_timeout(100)
     assert page.locator('#viewerTextPanel').is_visible()

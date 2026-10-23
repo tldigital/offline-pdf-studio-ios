@@ -72,3 +72,24 @@
  .viewer-search-results{max-height:20svh}
  .placement-workspace .pdf-preview{max-height:55svh;min-height:235px;padding:6px}
 }
+
+
+/* v1.4 · Selectable PDF text and Adobe-style in-page Find highlights.
+   pdfjs-dist/web/pdf_viewer.css supplies PDF.js text geometry. */
+.pdf-page-stage{position:relative;display:block;width:max-content;max-width:none;min-height:1px;margin:0 auto;background:white;box-shadow:0 8px 25px #0c2b3333}
+.pdf-page-stage canvas{display:block;position:relative;z-index:0;max-width:none!important;max-height:none!important;object-fit:initial;box-shadow:none!important;margin:0!important}
+.pdf-page-stage .pdf-text-layer{position:absolute;inset:0;z-index:3;overflow:hidden;opacity:1;line-height:1;pointer-events:auto;user-select:text;-webkit-user-select:text;-webkit-touch-callout:default;touch-action:auto}
+.pdf-page-stage .pdf-text-layer span,.pdf-page-stage .pdf-text-layer br{color:transparent!important;cursor:text;user-select:text;-webkit-user-select:text}
+.pdf-page-stage .pdf-text-layer ::selection{background:rgba(48,123,225,.45);color:transparent}
+.pdf-page-stage .pdf-search-highlights{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.pdf-page-stage .pdf-find-mark{position:absolute;display:block;pointer-events:none;border-radius:2px;background:rgba(255,190,40,.54);box-shadow:inset 0 0 0 1px rgba(208,125,11,.30);mix-blend-mode:multiply}
+.pdf-page-stage .pdf-find-mark.current{background:rgba(255,147,24,.64);box-shadow:0 0 0 2px rgba(204,92,13,.60);border-radius:2px}
+.pdf-page-stage .placement-pin{z-index:5}
+.placement-workspace .pdf-page-stage .pdf-text-layer{pointer-events:none;display:none}
+.viewer-page-shortcuts{flex-wrap:wrap}
+.viewer-page-shortcuts #viewerCopySelection{margin-left:auto}
+.viewer-page-shortcuts #viewerCopyText{margin-left:0}
+@media(max-width:710px){
+ .viewer-page-shortcuts #viewerCopySelection{margin-left:auto}
+ .viewer-page-shortcuts #viewerCopyText{padding:8px;font-size:11px}
+}

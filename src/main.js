@@ -1,6 +1,6 @@
 import * as core from './pdf-core.js';
-import {openPreview,renderPage,exportPngsAsZip} from './pdf-preview.js';
-import {normaliseText,searchDocument,tapToPdfPoint} from './viewer-utils.js';
+import {openPreview,renderPage,renderTextOverlay,exportPngsAsZip} from './pdf-preview.js';
+import {normaliseText,searchDocument,tapToPdfPoint,locateTextMatches} from './viewer-utils.js';
 
 const $=id=>document.getElementById(id);
 const TOOL={
@@ -19,7 +19,7 @@ const TOOL={
   export:['PDF to PNG','Export document pages as PNG images in a ZIP file.'],
   view:['View PDF','Preview pages directly on this device.']
 };
-const state={mode:'view',files:[],image:null,bytes:null,history:[],redo:[],page:0,preview:null,result:null,busy:false,signature:false,signatureCtx:null,signatureDrawing:false,zoom:1,renderRequest:0,renderQueue:Promise.resolve(),searchToken:0,placement:null,pendingPinchZoom:null};
+const state={mode:'view',files:[],image:null,bytes:null,history:[],redo:[],page:0,preview:null,result:null,busy:false,signature:false,signatureCtx:null,signatureDrawing:false,zoom:1,renderRequest:0,renderQueue:Promise.resolve(),searchToken:0,placement:null,pendingPinchZoom:null,searchTerm:'',scrollToHit:false,textLayerTask:null};
 const input=(id,label,{type='text',value='',min,max,step,placeholder,accept}={})=>`<label class="field"><span>${label}</span><input id="${id}" type="${type}" value="${value}" ${min!==undefined?`min="${min}"`:''} ${max!==undefined?`max="${max}"`:''} ${step!==undefined?`step="${step}"`:''} ${placeholder?`placeholder="${placeholder}"`:''} ${accept?`accept="${accept}"`:''}></label>`;
 const select=(id,label,entries)=>`<label class="field"><span>${label}</span><select id="${id}">${entries.map(([val,title])=>`<option value="${val}">${title}</option>`).join('')}</select></label>`;
 const pagesSelect=()=>input('pageNo','Page number',{type:'number',value:'1',min:1});
@@ -32,8 +32,8 @@ function fileResult(blob,name){state.result={blob,name};$('resultPanel').hidden=
 function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function share(){if(!state.result)return;const {blob,name}=state.result;try{const file=new File([blob],name,{type:blob.type});if(navigator.canShare?.({files:[file]})&&navigator.share){await navigator.share({files:[file],title:name});return;}}catch(err){if(err.name==='AbortError')return;}download(blob,name);status('File saved or sent to Safari Downloads. Check Files → Downloads.',true);}
 function resetResults(){state.result=null;$('resultPanel').hidden=true;status('');}
-function closePreview(){state.renderRequest++;state.searchToken++;if(state.preview){state.preview.close();state.preview=null;}}
-function clearEditor(){$('workspace').classList.remove('viewer-active');closePreview();state.files=[];state.image=null;state.bytes=null;state.history=[];state.redo=[];state.page=0;state.zoom=1;state.signature=false;state.placement=null;$('placementPin').hidden=true;$('viewerTextPanel').hidden=true;$('viewerSearchResults').hidden=true;$('viewerSearchResults').replaceChildren();$('viewerSearch').value='';resetResults();$('filePicker').value='';$('fileStack').replaceChildren();$('selectedInfo').hidden=true;$('editorView').hidden=true;$('utilityButtons').hidden=true;}
+function closePreview(){state.renderRequest++;state.searchToken++;resetTextOverlay();if(state.preview){state.preview.close();state.preview=null;}}
+function clearEditor(){$('workspace').classList.remove('viewer-active');closePreview();state.files=[];state.image=null;state.bytes=null;state.history=[];state.redo=[];state.page=0;state.zoom=1;state.signature=false;state.placement=null;$('placementPin').hidden=true;$('viewerTextPanel').hidden=true;$('viewerSearchResults').hidden=true;$('viewerSearchResults').replaceChildren();$('viewerSearch').value='';state.searchTerm='';state.scrollToHit=false;resetResults();$('filePicker').value='';$('fileStack').replaceChildren();$('selectedInfo').hidden=true;$('editorView').hidden=true;$('utilityButtons').hidden=true;}
 function getForms(mode){switch(mode){
 case 'organise':return `<p class="note">Use the controls below to modify your document. Each operation can be undone before saving.</p><div class="control-row"><button id="moveUp" class="mini-btn">↑ Move up</button><button id="moveDown" class="mini-btn">↓ Move down</button><button id="rotateLeft" class="mini-btn">↺ Rotate</button><button id="rotateRight" class="mini-btn">↻ Rotate</button></div><div class="control-row"><button id="deletePage" class="mini-btn warning">Remove page</button><button id="insertPage" class="mini-btn">＋ Blank page</button></div>`;
 case 'merge':return `<p class="note">Select 2–20 PDFs. Use the arrows in the file list to arrange their merge order.</p>`;
@@ -116,6 +116,7 @@ async function drawPreview(){
   $('pagePosition').textContent=`${state.page+1} / ${p.doc.numPages}`;
   $('viewerJumpPage').value=String(state.page+1);
   $('viewerTextPanel').hidden=true;
+  resetTextOverlay();
   if(state.placement && state.placement.page!==state.page)state.placement=null;
   $('placementPin').hidden=true;
   if($('pageNo'))$('pageNo').value=String(state.page+1);
@@ -139,6 +140,26 @@ async function drawPreview(){
       if(ticket!==state.renderRequest||p!==state.preview)return;
       $('pdfCanvas').hidden=false;
       $('previewPlaceholder').hidden=true;
+      // Canvas pixels are not selectable. The aligned PDF.js text layer gives
+      // Safari real DOM text without changing or uploading the document.
+      if(state.mode==='view') {
+        try {
+          const canvas=$('pdfCanvas');
+          const stage=$('pdfPageStage');
+          stage.style.width=canvas.style.width;
+          stage.style.height=canvas.style.height;
+          const task=await renderTextOverlay(p.doc,chosenPage,$('pdfTextLayer'),canvas);
+          if(ticket!==state.renderRequest||p!==state.preview)return;
+          state.textLayerTask=task;
+          highlightSearchOnPage();
+        }catch(textError){
+          // Rendering the PDF is more important than text selection; keep
+          // the page visible even if the optional accessibility layer fails.
+          console.warn('Text layer unavailable:',errorMessage(textError));
+          resetTextOverlay();
+          status('Page is visible, but direct text selection is unavailable. Use “Select page text” as a fallback.');
+        }
+      }
       syncPlacementPin();
     }catch(e){
       if(ticket===state.renderRequest&&p===state.preview)showPreviewError(errorMessage(e));
@@ -146,6 +167,69 @@ async function drawPreview(){
   });
   state.renderQueue=next;
   return next;
+}
+// PDF.js canvas contains only pixels: use an aligned text layer for native
+// select/copy and a separate, non-interactive highlight overlay for Find.
+function resetTextOverlay(){
+  const task=state.textLayerTask;
+  state.textLayerTask=null;
+  try{task?.cancel?.();}catch(_e){}
+  $('pdfTextLayer').replaceChildren();
+  $('pdfSearchHighlights').replaceChildren();
+  $('pdfPageStage').classList.remove('page-has-search');
+}
+function highlightSearchOnPage(){
+  const overlay=$('pdfSearchHighlights');
+  overlay.replaceChildren();
+  const layer=$('pdfTextLayer'),query=state.searchTerm;
+  if(state.mode!=='view'||!query||!layer.childNodes.length)return;
+  const walker=document.createTreeWalker(layer,NodeFilter.SHOW_TEXT);
+  const nodes=[];
+  while(walker.nextNode()){
+    if(walker.currentNode.nodeValue)nodes.push(walker.currentNode);
+  }
+  const matches=locateTextMatches(nodes.map(n=>n.nodeValue),query,{limit:80});
+  const bounding=layer.getBoundingClientRect();
+  const fragment=document.createDocumentFragment();
+  let first=null;
+  let painted=0;
+  for(const match of matches){
+    try{
+      const range=document.createRange();
+      range.setStart(nodes[match.start.node],match.start.offset);
+      range.setEnd(nodes[match.end.node],match.end.offset);
+      for(const rect of range.getClientRects()){
+        if(rect.width<.4||rect.height<.4)continue;
+        const mark=document.createElement('span');
+        mark.className='pdf-find-mark'+(painted===0?' current':'');
+        mark.style.left=`${Math.max(0,rect.left-bounding.left)}px`;
+        mark.style.top=`${Math.max(0,rect.top-bounding.top)}px`;
+        mark.style.width=`${Math.min(rect.width,bounding.width)}px`;
+        mark.style.height=`${rect.height}px`;
+        mark.setAttribute('aria-hidden','true');
+        fragment.append(mark);
+        if(!first)first=mark;
+        painted++;
+      }
+    }catch(e){console.warn('Could not highlight match:',e);}
+  }
+  overlay.append(fragment);
+  $('pdfPageStage').classList.toggle('page-has-search',painted>0);
+  if(state.scrollToHit&&first){
+    const box=$('previewBox'),rect=first.getBoundingClientRect(),viewport=box.getBoundingClientRect();
+    box.scrollTop+=rect.top-viewport.top-box.clientHeight*.30;
+    state.scrollToHit=false;
+  }
+}
+async function copySelection(){
+  const selection=window.getSelection();
+  if(!selection||selection.isCollapsed||!$('pdfTextLayer').contains(selection.anchorNode)||!$('pdfTextLayer').contains(selection.focusNode)){
+    status('Long-press and drag across words on the PDF, then tap Copy selection.');return;
+  }
+  const selected=selection.toString();
+  if(!selected.trim())return;
+  try{await navigator.clipboard.writeText(selected);status('Selected text copied to clipboard.',true);}
+  catch(e){status('Use Safari’s Copy option to copy the highlighted text.');}
 }
 function openNativePdf(){
   if(!state.bytes)return;
@@ -188,13 +272,13 @@ function syncPlacementPin(){
   const pin=$('placementPin'),canvas=$('pdfCanvas'),selection=state.placement;
   if(!selection||selection.page!==state.page||canvas.hidden){pin.hidden=true;return;}
   // A marker makes page-specific coordinates visible before committing an edit.
-  pin.style.left=`${canvas.offsetLeft+canvas.clientWidth*selection.relativeX}px`;
-  pin.style.top=`${canvas.offsetTop+canvas.clientHeight*selection.relativeY}px`;
+  pin.style.left=`${canvas.clientWidth*selection.relativeX}px`;
+  pin.style.top=`${canvas.clientHeight*selection.relativeY}px`;
   pin.hidden=false;
 }
 async function selectPlacement(event){
   if(!['sign','annotate'].includes(state.mode)||!state.preview)return;
-  const page=await state.preview.doc.getPage(state.page);
+  const page=await state.preview.doc.getPage(state.page + 1);
   const viewport=page.getViewport({scale:1});
   const location=tapToPdfPoint(viewport,$('pdfCanvas').getBoundingClientRect(),event.clientX,event.clientY);
   state.placement={page:state.page,...location};
@@ -221,14 +305,19 @@ async function findInDocument(event){
     const results=await searchDocument(doc,query,{maxResults:80,cancelled:()=>token!==state.searchToken||doc!==state.preview?.doc,onProgress:(n,total)=>{if(token===state.searchToken)target.textContent=`Searching page ${n} of ${total}…`;}});
     if(token!==state.searchToken||doc!==state.preview?.doc)return;
     target.replaceChildren();
-    if(!results.length){target.textContent='No matching selectable text. Scanned PDFs require OCR.';return;}
-    const summary=document.createElement('span');summary.className='search-count';summary.textContent=`Found on ${results.length} page${results.length===1?'':'s'}`;target.append(summary);
+    state.searchTerm=query;
+    if(!results.length){state.searchTerm='';highlightSearchOnPage();target.textContent='No matching selectable text. Scanned PDFs require OCR.';return;}
+    const summary=document.createElement('span');summary.className='search-count';summary.textContent=`Found on ${results.length} page${results.length===1?'':'s'} · Matches are highlighted on the PDF`;target.append(summary);
     results.forEach(({page,snippet})=>{
       const b=document.createElement('button');b.type='button';b.className='search-result';
       const n=document.createElement('b');n.textContent=`Page ${page+1}`;
       const excerpt=document.createElement('span');excerpt.textContent=snippet;
-      b.append(n,excerpt);b.addEventListener('click',()=>{state.page=page;void drawPreview();});target.append(b);
+      b.append(n,excerpt);b.addEventListener('click',()=>{state.page=page;state.scrollToHit=true;void drawPreview();});target.append(b);
     });
+    // Adobe-style Find: jump to and visibly mark the first matching phrase.
+    state.page=results[0].page;
+    state.scrollToHit=true;
+    await drawPreview();
   }catch(err){if(token===state.searchToken)target.textContent=errorMessage(err);}
 }
 function jumpToPage(){
@@ -238,10 +327,11 @@ function jumpToPage(){
   $('viewerJumpPage').setCustomValidity('');state.page=n-1;void drawPreview();
 }
 $('viewerSearchForm').addEventListener('submit',findInDocument);
-$('viewerClearSearch').onclick=()=>{state.searchToken++;$('viewerSearch').value='';$('viewerSearchResults').replaceChildren();$('viewerSearchResults').hidden=true;};
+$('viewerClearSearch').onclick=()=>{state.searchToken++;state.searchTerm='';state.scrollToHit=false;$('viewerSearch').value='';$('viewerSearchResults').replaceChildren();$('viewerSearchResults').hidden=true;highlightSearchOnPage();};
 $('viewerJump').onclick=jumpToPage;
 $('viewerJumpPage').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();jumpToPage();}});
 $('viewerCopyText').onclick=showSelectablePageText;
+$('viewerCopySelection').onclick=copySelection;
 $('viewerCloseText').onclick=()=>{$('viewerTextPanel').hidden=true;};
 $('pdfCanvas').addEventListener('pointerup',e=>{void selectPlacement(e).catch(err=>status(errorMessage(err)));});
 
@@ -292,6 +382,7 @@ $('previewBox').addEventListener('touchend',e=>{
   if(!pageSwipe||state.mode!=='view'||!state.preview||e.touches.length>0)return;
   const last=e.changedTouches[0],dx=last.clientX-pageSwipe.x,dy=last.clientY-pageSwipe.y;
   pageSwipe=null;
+  if(window.getSelection()?.toString().trim())return;
   if(Math.abs(dx)<85||Math.abs(dy)>65)return;
   const step=dx<0?1:-1, next=state.page+step;
   if(next>=0&&next<state.preview.doc.numPages){state.page=next;void drawPreview();}
