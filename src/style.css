@@ -93,3 +93,24 @@
  .viewer-page-shortcuts #viewerCopySelection{margin-left:auto}
  .viewer-page-shortcuts #viewerCopyText{padding:8px;font-size:11px}
 }
+
+/* v1.4.1 — iOS Safari search field contrast fix.
+   Never let a device's dark appearance turn text white on a light input. */
+.viewer-search-form #viewerSearch,
+.viewer-search-form #viewerSearch:focus {
+  background-color: #f7faf8;
+  color: #18343b;
+  -webkit-text-fill-color: #18343b;
+  caret-color: #18343b;
+  color-scheme: light;
+}
+.viewer-search-form #viewerSearch::placeholder {
+  color: #647a75;
+  -webkit-text-fill-color: #647a75;
+  opacity: 1;
+}
+.viewer-search-form #viewerSearch::selection {
+  background: #205f91;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
