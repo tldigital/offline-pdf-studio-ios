@@ -204,7 +204,7 @@ async function selectPlacement(event){
 async function showSelectablePageText(){
   if(!state.preview)return;
   try {
-    const page=await state.preview.doc.getPage(state.page);
+    const page=await state.preview.doc.getPage(state.page + 1);
     const contents=await page.getTextContent();
     const text=normaliseText(contents.items||[]);
     $('viewerTextContent').value=text || 'No selectable text found. This page may be a scan; OCR is not included.';
